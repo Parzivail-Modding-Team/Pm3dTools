@@ -75,17 +75,29 @@ namespace BlockbenchToPmodel.PM3D
                     flags |= ModelFlags.AmbientOcclusion;
 
                 b.Write((byte)flags);
-
+                
+                b.Write(_json.Textures.Count);
                 b.Write(_verts.Count);
                 b.Write(_normals.Count);
                 b.Write(_uvs.Count);
                 b.Write(_objects.Count);
+                
+                WriteTextures(b, _json.Textures);
 
                 foreach (var vert in _verts) WriteVert(b, vert);
                 foreach (var norm in _normals) WriteNormal(b, norm);
                 foreach (var uv in _uvs) WriteUv(b, uv);
 
                 WriteObjects(b, _objects);
+            }
+        }
+
+        private static void WriteTextures(BinaryWriter b, Dictionary<string, string> textures)
+        {
+            foreach (var pair in textures)
+            {
+                b.WriteNtString(pair.Key);
+                b.WriteNtString(pair.Value);
             }
         }
 
@@ -111,7 +123,6 @@ namespace BlockbenchToPmodel.PM3D
 
         private static void WriteObjects(BinaryWriter b, Dictionary<ModelObjectInfo, List<ObjFace>> objects)
         {
-            b.Write(objects.Count); // number of objects
             foreach (var pair in objects)
             {
                 b.WriteNtString(pair.Key.ObjectName);

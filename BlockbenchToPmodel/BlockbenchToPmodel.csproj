@@ -45,16 +45,16 @@
   <ItemGroup>
     <Compile Include="Blockbench\BlockbenchModel.cs" />
     <Compile Include="Blockbench\Element.cs" />
+    <Compile Include="Extensions.cs" />
     <Compile Include="Blockbench\Face.cs" />
     <Compile Include="Blockbench\Faces.cs" />
-    <Compile Include="Blockbench\QuadData.cs" />
-    <Compile Include="Blockbench\Rotation.cs" />
-    <Compile Include="Extensions.cs" />
     <Compile Include="PM3D\Model.cs" />
     <Compile Include="PM3D\ModelFlags.cs" />
     <Compile Include="PM3D\ModelObjectInfo.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Blockbench\QuadData.cs" />
+    <Compile Include="Blockbench\Rotation.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
