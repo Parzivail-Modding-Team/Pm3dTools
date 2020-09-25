@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace BlockbenchToPmodel.PM3D
+﻿namespace Pm3dTools
 {
     internal enum FaceMaterial
     {

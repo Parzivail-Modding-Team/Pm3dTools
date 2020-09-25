@@ -1,4 +1,4 @@
-﻿namespace BlockbenchToPmodel.PM3D
+﻿namespace Pm3dTools
 {
     internal class ModelObjectInfo
     {

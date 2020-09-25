@@ -3,10 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
-using Brotli;
 using JeremyAnsel.Media.WavefrontObj;
 
-namespace BlockbenchToPmodel.PM3D
+namespace Pm3dTools
 {
     class Pm3DModel
     {
@@ -55,24 +54,21 @@ namespace BlockbenchToPmodel.PM3D
 
         public void Write(string filename)
         {
-            using (var fs = File.Open(filename, FileMode.Create))
-            using (var bs = new BrotliStream(fs, CompressionMode.Compress))
-            using (var b = new BinaryWriter(bs))
-            {
-                b.Write(_headerMagic);
-                b.Write(FileVersion);
+	        using var b = new BinaryWriter(File.Open(filename, FileMode.Create));
+
+	        b.Write(_headerMagic);
+	        b.Write(FileVersion);
                 
-                b.Write(_verts.Count);
-                b.Write(_normals.Count);
-                b.Write(_uvs.Count);
-                b.Write(_objects.Count);
+	        b.Write(_verts.Count);
+	        b.Write(_normals.Count);
+	        b.Write(_uvs.Count);
+	        b.Write(_objects.Count);
 
-                foreach (var vert in _verts) WriteVert(b, vert);
-                foreach (var norm in _normals) WriteNormal(b, norm);
-                foreach (var uv in _uvs) WriteUv(b, uv);
+	        foreach (var vert in _verts) WriteVert(b, vert);
+	        foreach (var norm in _normals) WriteNormal(b, norm);
+	        foreach (var uv in _uvs) WriteUv(b, uv);
 
-                WriteObjects(b, _objects);
-            }
+	        WriteObjects(b, _objects);
         }
 
         private static void WriteVert(BinaryWriter b, ObjVertex vert)
