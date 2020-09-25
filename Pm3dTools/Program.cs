@@ -13,10 +13,8 @@ namespace Pm3dTools
                 return;
             }
 
-            args[0] = Path.GetDirectoryName(args[0]) + Path.DirectorySeparatorChar + Path.GetFileNameWithoutExtension(args[0]);
-
             var model = Pm3DModel.FromFile(args[0]);
-            model.Write(args[0] + ".pm3d");
+            model.Write(Path.Combine(Path.GetDirectoryName(args[0])!, Path.GetFileNameWithoutExtension(args[0])!) + ".pm3d");
         }
     }
 }

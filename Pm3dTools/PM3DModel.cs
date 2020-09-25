@@ -27,9 +27,7 @@ namespace Pm3dTools
 
         public static Pm3DModel FromFile(string filename)
         {
-            ExpectFile($"{filename}.obj");
-
-            var obj = ObjFile.FromFile($"{filename}.obj");
+	        var obj = ObjFile.FromFile(filename);
 
             var objects = obj
                 .Faces
@@ -41,15 +39,6 @@ namespace Pm3dTools
             var uvs = obj.TextureVertices;
 
             return new Pm3DModel(objects, verts, normals, uvs);
-        }
-
-        private static void ExpectFile(string filename)
-        {
-            if (File.Exists(filename))
-                return;
-
-            Console.WriteLine($"File not found: {filename}");
-            Environment.Exit(0);
         }
 
         public void Write(string filename)
