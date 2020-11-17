@@ -7,38 +7,55 @@ using JeremyAnsel.Media.WavefrontObj;
 
 namespace Pm3dTools
 {
+	class Pm3DLod
+	{
+		public readonly Dictionary<string, List<ObjFace>> Objects;
+		public readonly IList<ObjVertex> Verts;
+		public readonly IList<ObjVector3> Normals;
+		public readonly IList<ObjVector3> Uvs;
+
+		public Pm3DLod(Dictionary<string, List<ObjFace>> objects, IList<ObjVertex> verts, IList<ObjVector3> normals, IList<ObjVector3> uvs)
+		{
+			Objects = objects;
+			Verts = verts;
+			Normals = normals;
+			Uvs = uvs;
+		}
+	}
+
     class Pm3DModel
     {
-        private const int FileVersion = 0x02;
+        private const int FileVersion = 0x03;
         private readonly byte[] _headerMagic = { (byte)'P', (byte)'m', (byte)'3', (byte)'D' };
 
-        private readonly Dictionary<string, List<ObjFace>> _objects;
-        private readonly IList<ObjVertex> _verts;
-        private readonly IList<ObjVector3> _normals;
-        private readonly IList<ObjVector3> _uvs;
+		private readonly IList<Pm3DLod> _lods;
 
-        private Pm3DModel(Dictionary<string, List<ObjFace>> objects, IList<ObjVertex> verts, IList<ObjVector3> normals, IList<ObjVector3> uvs)
+		private Pm3DModel(IList<Pm3DLod> lods)
         {
-            _objects = objects;
-            _verts = verts;
-            _normals = normals;
-            _uvs = uvs;
+            _lods = lods;
         }
 
-        public static Pm3DModel FromFile(string filename)
+        public static Pm3DModel FromObjLods(params string[] filenames)
         {
-	        var obj = ObjFile.FromFile(filename);
+			var lods = new List<Pm3DLod>();
 
-            var objects = obj
-                .Faces
-                .GroupBy(face => face.ObjectName)
-                .ToDictionary(grouping => grouping.Key, grouping => grouping.ToList());
+			foreach (var filename in filenames)
+			{
+				var obj = ObjFile.FromFile(filename);
 
-            var verts = obj.Vertices;
-            var normals = obj.VertexNormals;
-            var uvs = obj.TextureVertices;
+				var objects = obj
+					.Faces
+					.GroupBy(face => face.ObjectName)
+					.ToDictionary(grouping => grouping.Key, grouping => grouping.ToList());
 
-            return new Pm3DModel(objects, verts, normals, uvs);
+				var verts = obj.Vertices;
+				var normals = obj.VertexNormals;
+				var uvs = obj.TextureVertices;
+
+				lods.Add(new Pm3DLod(objects, verts, normals, uvs));
+			}
+
+            return new Pm3DModel(lods);
         }
 
         public void Write(string filename)
@@ -47,17 +64,22 @@ namespace Pm3dTools
 
 	        b.Write(_headerMagic);
 	        b.Write(FileVersion);
-                
-	        b.Write(_verts.Count);
-	        b.Write(_normals.Count);
-	        b.Write(_uvs.Count);
-	        b.Write(_objects.Count);
 
-	        foreach (var vert in _verts) WriteVert(b, vert);
-	        foreach (var norm in _normals) WriteNormal(b, norm);
-	        foreach (var uv in _uvs) WriteUv(b, uv);
+			b.Write(_lods.Count);
 
-	        WriteObjects(b, _objects);
+			foreach (var lod in _lods)
+			{
+				b.Write(lod.Verts.Count);
+				b.Write(lod.Normals.Count);
+				b.Write(lod.Uvs.Count);
+				b.Write(lod.Objects.Count);
+
+				foreach (var vert in lod.Verts) WriteVert(b, vert);
+				foreach (var norm in lod.Normals) WriteNormal(b, norm);
+				foreach (var uv in lod.Uvs) WriteUv(b, uv);
+
+				WriteObjects(b, lod.Objects);
+			}
         }
 
         private static void WriteVert(BinaryWriter b, ObjVertex vert)
@@ -97,9 +119,9 @@ namespace Pm3dTools
                     foreach (var vertex in face.Vertices)
                     {
                         // OBJ model pointers are 1-indexed
-                        b.Write(vertex.Vertex - 1);
-                        b.Write(vertex.Normal - 1);
-                        b.Write(vertex.Texture - 1);
+                        b.Write7BitEncodedInt(vertex.Vertex - 1);
+                        b.Write7BitEncodedInt(vertex.Normal - 1);
+                        b.Write7BitEncodedInt(vertex.Texture - 1);
                     }
                 }
             }
