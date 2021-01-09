@@ -25,7 +25,7 @@ namespace Pm3dTools
 
     class Pm3DModel
     {
-        private const int FileVersion = 0x03;
+        private const int FileVersion = 0x04;
         private readonly byte[] _headerMagic = { (byte)'P', (byte)'m', (byte)'3', (byte)'D' };
 
 		private readonly IList<Pm3DLod> _lods;
@@ -84,22 +84,22 @@ namespace Pm3dTools
 
         private static void WriteVert(BinaryWriter b, ObjVertex vert)
         {
-            b.Write(vert.Position.X);
-            b.Write(vert.Position.Y);
-            b.Write(vert.Position.Z);
+	        WriteAsHalf(b, vert.Position.X);
+            WriteAsHalf(b, vert.Position.Y);
+            WriteAsHalf(b, vert.Position.Z);
         }
 
         private static void WriteNormal(BinaryWriter b, ObjVector3 norm)
         {
-            b.Write(norm.X);
-            b.Write(norm.Y);
-            b.Write(norm.Z);
+            WriteAsHalf(b, norm.X);
+            WriteAsHalf(b, norm.Y);
+            WriteAsHalf(b, norm.Z);
         }
 
         private static void WriteUv(BinaryWriter b, ObjVector3 uv)
         {
-            b.Write(uv.X);
-            b.Write(uv.Y);
+            WriteAsHalf(b, uv.X);
+            WriteAsHalf(b, uv.Y);
         }
 
         private static void WriteObjects(BinaryWriter b, Dictionary<string, List<ObjFace>> objects)
@@ -125,6 +125,12 @@ namespace Pm3dTools
                     }
                 }
             }
+        }
+
+        private static void WriteAsHalf(BinaryWriter bw, float f)
+        {
+	        var half = new HalfFloat(f);
+	        bw.Write(half.GetHalfPrecisionAsShort());
         }
 
         private static byte GetMaterial(string materialName)
