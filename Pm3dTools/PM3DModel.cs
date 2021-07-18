@@ -25,14 +25,14 @@ namespace Pm3dTools
 
     class Pm3DModel
     {
-        private const int FileVersion = 0x04;
-        private readonly byte[] _headerMagic = { (byte)'P', (byte)'m', (byte)'3', (byte)'D' };
+	    private const int FileVersion = 0x05;
+        private static readonly byte[] HeaderMagic = { (byte)'P', (byte)'m', (byte)'3', (byte)'D' };
 
-		private readonly IList<Pm3DLod> _lods;
+        public IList<Pm3DLod> Lods { get; }
 
 		private Pm3DModel(IList<Pm3DLod> lods)
         {
-            _lods = lods;
+            Lods = lods;
         }
 
         public static Pm3DModel FromObjLods(params string[] filenames)
@@ -46,35 +46,131 @@ namespace Pm3dTools
 				var objects = obj
 					.Faces
 					.GroupBy(face => face.ObjectName)
-					.ToDictionary(grouping => grouping.Key, grouping => grouping.ToList());
+					.ToDictionary(grouping => grouping.Key ?? "", grouping => grouping.ToList());
 
-				var verts = obj.Vertices;
-				var normals = obj.VertexNormals;
-				var uvs = obj.TextureVertices;
-
-				lods.Add(new Pm3DLod(objects, verts, normals, uvs));
+				lods.Add(new Pm3DLod(objects, obj.Vertices, obj.VertexNormals, obj.TextureVertices));
 			}
 
             return new Pm3DModel(lods);
         }
 
-        public void Write(string filename)
+        public static Pm3DModel FromFile(string filename)
+        {
+	        using var b = new BinaryReader(File.Open(filename, FileMode.Open));
+
+	        var header = b.ReadBytes(HeaderMagic.Length);
+
+	        if (!header.SequenceEqual(HeaderMagic))
+		        throw new InvalidDataException("Not a Pm3D file");
+
+	        var version = b.ReadInt32();
+	        if (version != FileVersion)
+		        throw new InvalidDataException($"Not a Pm3Dv{FileVersion} file");
+
+	        var lodCount = b.ReadInt32();
+	        var lods = new List<Pm3DLod>();
+	        
+	        for (var i = 0; i < lodCount; i++)
+	        {
+				var numVerts = b.ReadInt32();
+				var numNorms = b.ReadInt32();
+				var numUvs = b.ReadInt32();
+				var numObjects = b.ReadInt32();
+
+				var verts = ReadVerts(b, numVerts);
+				var norms = ReadNormals(b, numNorms);
+				var uvs = ReadUvs(b, numUvs);
+				var objects = ReadObjects(b, numObjects);
+				
+				lods.Add(new Pm3DLod(objects, verts, norms, uvs));
+	        }
+
+	        return new Pm3DModel(lods);
+        }
+
+        private static Dictionary<string, List<ObjFace>> ReadObjects(BinaryReader b, int num)
+        {
+	        var d = new Dictionary<string, List<ObjFace>>();
+	        
+	        for (var i = 0; i < num; i++)
+	        {
+		        var faces = new List<ObjFace>();
+		        var objectName = b.ReadNtString();
+		        var numFaces = b.ReadInt32();
+
+		        for (var j = 0; j < numFaces; j++)
+		        {
+			        var face = new ObjFace();
+			        var material = (FaceMaterial) b.ReadByte();
+			        var numVerts = b.ReadInt32();
+
+			        face.MaterialName = GetMaterialName(material);
+
+			        for (var k = 0; k < numVerts; k++)
+			        {
+				        var v = b.Read7BitEncodedInt();
+				        var n = b.Read7BitEncodedInt();
+				        var t = b.Read7BitEncodedInt();
+				        
+				        face.Vertices.Add(new ObjTriplet(v + 1, t + 1, n + 1));
+			        }
+			        
+			        faces.Add(face);
+		        }
+
+		        d[objectName] = faces;
+	        }
+
+	        return d;
+        }
+
+        private static List<ObjVertex> ReadVerts(BinaryReader b, int num)
+        {
+	        var l = new List<ObjVertex>();
+
+	        for (var i = 0; i < num; i++) 
+		        l.Add(new ObjVertex(b.ReadSingle(), b.ReadSingle(), b.ReadSingle()));
+
+	        return l;
+        }
+
+        private static List<ObjVector3> ReadNormals(BinaryReader b, int num)
+        {
+	        var l = new List<ObjVector3>();
+
+	        for (var i = 0; i < num; i++) 
+		        l.Add(new ObjVector3(b.ReadSingle(), b.ReadSingle(), b.ReadSingle()));
+
+	        return l;
+        }
+
+        private static List<ObjVector3> ReadUvs(BinaryReader b, int num)
+        {
+	        var l = new List<ObjVector3>();
+
+	        for (var i = 0; i < num; i++) 
+		        l.Add(new ObjVector3(b.ReadSingle(), b.ReadSingle(), 0));
+
+	        return l;
+        }
+
+        public void Write(string filename, float scaleFactor)
         {
 	        using var b = new BinaryWriter(File.Open(filename, FileMode.Create));
 
-	        b.Write(_headerMagic);
+	        b.Write(HeaderMagic);
 	        b.Write(FileVersion);
 
-			b.Write(_lods.Count);
+			b.Write(Lods.Count);
 
-			foreach (var lod in _lods)
+			foreach (var lod in Lods)
 			{
 				b.Write(lod.Verts.Count);
 				b.Write(lod.Normals.Count);
 				b.Write(lod.Uvs.Count);
 				b.Write(lod.Objects.Count);
 
-				foreach (var vert in lod.Verts) WriteVert(b, vert);
+				foreach (var vert in lod.Verts) WriteVert(b, vert, scaleFactor);
 				foreach (var norm in lod.Normals) WriteNormal(b, norm);
 				foreach (var uv in lod.Uvs) WriteUv(b, uv);
 
@@ -82,39 +178,39 @@ namespace Pm3dTools
 			}
         }
 
-        private static void WriteVert(BinaryWriter b, ObjVertex vert)
+        private static void WriteVert(BinaryWriter b, ObjVertex vert, float scaleFactor)
         {
-	        WriteAsHalf(b, vert.Position.X);
-            WriteAsHalf(b, vert.Position.Y);
-            WriteAsHalf(b, vert.Position.Z);
+	        b.Write(vert.Position.X * scaleFactor);
+            b.Write(vert.Position.Y * scaleFactor);
+            b.Write(vert.Position.Z * scaleFactor);
         }
 
         private static void WriteNormal(BinaryWriter b, ObjVector3 norm)
         {
-            WriteAsHalf(b, norm.X);
-            WriteAsHalf(b, norm.Y);
-            WriteAsHalf(b, norm.Z);
+            b.Write(norm.X);
+            b.Write(norm.Y);
+            b.Write(norm.Z);
         }
 
         private static void WriteUv(BinaryWriter b, ObjVector3 uv)
         {
-            WriteAsHalf(b, uv.X);
-            WriteAsHalf(b, uv.Y);
+            b.Write(uv.X);
+            b.Write(uv.Y);
         }
 
         private static void WriteObjects(BinaryWriter b, Dictionary<string, List<ObjFace>> objects)
         {
-            foreach (var pair in objects)
+            foreach (var (objectName, faces) in objects)
             {
-                b.WriteNtString(pair.Key);
-                b.Write(pair.Value.Count); // number of faces in object
-                foreach (var face in pair.Value)
+                b.WriteNtString(objectName);
+                b.Write(faces.Count); // number of faces in object
+                foreach (var face in faces)
                 {
-                    if (face.Vertices.Count > 4 || face.Vertices.Count < 3)
+                    if (face.Vertices.Count is > 4 or < 3)
                         throw new InvalidDataException("Expected triangles and quads only");
 
                     b.Write(GetMaterial(face.MaterialName));
-                    Console.WriteLine($"{pair.Key} -> {face.MaterialName}");
+                    Console.WriteLine($"{objectName} -> {face.MaterialName}");
                     b.Write(face.Vertices.Count); // number of verts in face
                     foreach (var vertex in face.Vertices)
                     {
@@ -127,27 +223,28 @@ namespace Pm3dTools
             }
         }
 
-        private static void WriteAsHalf(BinaryWriter bw, float f)
-        {
-	        var half = new HalfFloat(f);
-	        bw.Write(half.GetHalfPrecisionAsShort());
-        }
-
         private static byte GetMaterial(string materialName)
         {
-            switch (materialName)
-            {
-                case "MAT_DIFFUSE_OPAQUE":
-                    return (byte) FaceMaterial.DiffuseOpaque;
-                case "MAT_DIFFUSE_CUTOUT":
-                    return (byte) FaceMaterial.DiffuseCutout;
-                case "MAT_DIFFUSE_TRANSLUCENT":
-                    return (byte) FaceMaterial.DiffuseTranslucent;
-                case "MAT_EMISSIVE":
-                    return (byte) FaceMaterial.Emissive;
-                default:
-                    throw new InvalidDataException("Expected material name to be one of: MAT_DIFFUSE_OPAQUE, MAT_DIFFUSE_CUTOUT, MAT_DIFFUSE_TRANSLUCENT, MAT_EMISSIVE");
-            }
+	        return materialName switch
+	        {
+		        "MAT_DIFFUSE_OPAQUE" => (byte) FaceMaterial.DiffuseOpaque,
+		        "MAT_DIFFUSE_CUTOUT" => (byte) FaceMaterial.DiffuseCutout,
+		        "MAT_DIFFUSE_TRANSLUCENT" => (byte) FaceMaterial.DiffuseTranslucent,
+		        "MAT_EMISSIVE" => (byte) FaceMaterial.Emissive,
+		        _ => throw new InvalidDataException("Expected material name to be one of: MAT_DIFFUSE_OPAQUE, MAT_DIFFUSE_CUTOUT, MAT_DIFFUSE_TRANSLUCENT, MAT_EMISSIVE")
+	        };
+        }
+
+        private static string GetMaterialName(FaceMaterial material)
+        {
+	        return material switch
+	        {
+		        FaceMaterial.DiffuseOpaque => "MAT_DIFFUSE_OPAQUE",
+		        FaceMaterial.DiffuseCutout => "MAT_DIFFUSE_CUTOUT",
+		        FaceMaterial.DiffuseTranslucent => "MAT_DIFFUSE_TRANSLUCENT",
+		        FaceMaterial.Emissive => "MAT_EMISSIVE",
+				_ => throw new ArgumentException()
+	        };
         }
     }
 }

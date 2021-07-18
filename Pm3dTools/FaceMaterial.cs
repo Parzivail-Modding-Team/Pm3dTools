@@ -1,10 +1,10 @@
 ﻿namespace Pm3dTools
 {
-    internal enum FaceMaterial
+    internal enum FaceMaterial : byte
     {
-        DiffuseOpaque,
-        DiffuseCutout,
-        DiffuseTranslucent,
-        Emissive
+        DiffuseOpaque = 0,
+        DiffuseCutout = 1,
+        DiffuseTranslucent = 2,
+        Emissive = 3
     }
 }
